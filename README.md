@@ -2,19 +2,19 @@
 
 Lightweight data quality checks powered by **DuckDB** — the anti–Great Expectations for teams who want `pip install`, one YAML file, and one command.
 
-> **Status:** v0.1 foundation — not_null, unique, accepted_values checks on CSV/Parquet; Postgres attach and JUnit output are next.
+> **Status:** v0.2 — CSV/Parquet plus custom SQL, freshness, row_count, and JUnit. Live Postgres ATTACH is stubbed, not CI-tested.
 
 ## Problem
 
 Data teams need to assert column quality in CI, but Great Expectations is heavyweight and Soda Core funnels to cloud. Ad-hoc SQL checks have no reporting standard.
 
-## Key features (v0.1)
+## Key features (v0.2)
 
 - YAML check definitions
 - DuckDB scans CSV and Parquet locally — no server
-- Checks: `not_null`, `unique`, `accepted_values`
-- CLI with pass/fail exit codes for CI
-- Rich terminal output
+- Checks: `not_null`, `unique`, `accepted_values`, `custom_sql`, `freshness`, `row_count`
+- `--junit` for CI dashboards
+- `${ENV}` in source URIs; `--source-table` for SQL ATTACH
 
 ## Architecture
 
@@ -43,6 +43,7 @@ pip install -e ".[dev]"
 ```bash
 duckcheck health
 duckcheck run examples/checks.yaml
+duckcheck run examples/checks.yaml --junit /tmp/duckcheck.xml
 ```
 
 Example `checks.yaml`:
@@ -75,18 +76,17 @@ pytest tests/ -v
 
 ## Roadmap
 
-- [ ] Postgres/MySQL via DuckDB ATTACH
-- [ ] Row count delta / freshness checks
-- [ ] JUnit XML output for CI
-- [ ] Custom SQL checks
+- [x] Freshness + row_count + custom_sql + JUnit
+- [ ] Live Postgres/MySQL ATTACH integration tests
+- [ ] Row-count baseline delta store
+- [ ] Airflow/Dagster operators
 
 ## License
 
 MIT
 
-## Known limitations (v0.1)
+## Known limitations (v0.2)
 
-- CSV and Parquet sources only
-- Checks reference `source_data` view implicitly
-- No baseline/drift mode yet
-- No Airflow/Dagster operators yet
+- Postgres/MySQL ATTACH is stubbed (`INSTALL/LOAD`) — no live DB in CI yet
+- `row_count` is min/max bounds, not a stored baseline delta
+- Checks still run against a `source_data` view

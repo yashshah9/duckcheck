@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from duckcheck import __version__
-from duckcheck.runner import run_suite
+from duckcheck.runner import run_suite, to_junit
 from duckcheck.spec import SuiteSpec
 
 console = Console()
@@ -28,10 +28,14 @@ def health() -> None:
 
 @main.command("run")
 @click.argument("suite_path", type=click.Path(exists=True, path_type=Path))
-def run_cmd(suite_path: Path) -> None:
+@click.option("--junit", type=click.Path(path_type=Path), default=None)
+@click.option("--source-table", default=None, help="Override attached SQL table name")
+def run_cmd(suite_path: Path, junit: Path | None, source_table: str | None) -> None:
     raw = yaml.safe_load(suite_path.read_text())
     suite = SuiteSpec.model_validate(raw)
-    report = run_suite(suite)
+    if source_table:
+        suite.source_table = source_table
+    report = run_suite(suite, suite_dir=suite_path.parent)
 
     table = Table(title=f"Results: {report.suite}")
     table.add_column("Check")
@@ -41,6 +45,10 @@ def run_cmd(suite_path: Path) -> None:
         status = "[green]PASS[/green]" if r.passed else "[red]FAIL[/red]"
         table.add_row(r.name, status, r.message)
     console.print(table)
+
+    if junit:
+        junit.write_text(to_junit(report), encoding="utf-8")
+        console.print(f"Wrote JUnit report to {junit}")
 
     if not report.passed:
         sys.exit(1)

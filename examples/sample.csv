@@ -1,5 +1,5 @@
-id,name,status,amount
-1,Alice,active,100
-2,Bob,active,200
-3,,active,50
-4,Charlie,invalid,300
+id,name,status,amount,updated_at
+1,Alice,active,100,2099-01-01 00:00:00
+2,Bob,active,200,2099-01-01 00:00:00
+3,,active,50,2099-01-01 00:00:00
+4,Charlie,invalid,300,2099-01-01 00:00:00
