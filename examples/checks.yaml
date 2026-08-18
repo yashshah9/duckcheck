@@ -1,0 +1,16 @@
+name: sample-suite
+source: examples/sample.csv
+checks:
+  - name: id_not_null
+    type: not_null
+    table: source_data
+    column: id
+  - name: name_not_null
+    type: not_null
+    table: source_data
+    column: name
+  - name: status_values
+    type: accepted_values
+    table: source_data
+    column: status
+    values: [active, inactive]
