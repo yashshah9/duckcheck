@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from duckcheck import __version__
-from duckcheck.runner import run_suite, to_junit
+from duckcheck.runner import run_suite, to_junit, update_baseline
 from duckcheck.spec import SuiteSpec
 
 console = Console()
@@ -52,6 +52,17 @@ def run_cmd(suite_path: Path, junit: Path | None, source_table: str | None) -> N
 
     if not report.passed:
         sys.exit(1)
+
+
+@main.command("baseline")
+@click.argument("action", type=click.Choice(["update"]))
+@click.argument("suite_path", type=click.Path(exists=True, path_type=Path))
+def baseline_cmd(action: str, suite_path: Path) -> None:
+    """Persist current row counts for row_count_delta checks."""
+    raw = yaml.safe_load(suite_path.read_text())
+    suite = SuiteSpec.model_validate(raw)
+    path = update_baseline(suite, suite_dir=suite_path.parent)
+    console.print(f"[green]Updated baseline[/green] {path}")
 
 
 if __name__ == "__main__":

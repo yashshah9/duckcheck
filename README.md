@@ -2,7 +2,7 @@
 
 Lightweight data quality checks powered by **DuckDB** — the anti–Great Expectations for teams who want `pip install`, one YAML file, and one command.
 
-> **Status:** v0.2 — CSV/Parquet plus custom SQL, freshness, row_count, and JUnit. Live Postgres ATTACH is stubbed, not CI-tested.
+> **Status:** v0.3 — CSV/Parquet/SQLite sources, custom SQL, freshness, row_count_delta baselines, and JUnit.
 
 ## Problem
 

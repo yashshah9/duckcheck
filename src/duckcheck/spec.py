@@ -13,10 +13,12 @@ class CheckSpec(BaseModel):
     max_age: str | None = None
     min_rows: int | None = None
     max_rows: int | None = None
+    tolerance_pct: float | None = None
 
 
 class SuiteSpec(BaseModel):
     name: str
     source: str
     source_table: str | None = None
+    baseline: str | None = None
     checks: list[CheckSpec] = Field(default_factory=list)

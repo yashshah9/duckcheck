@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0] - 2026-08-19
+
+### Added
+- SQLite sources (`sqlite://path` or `.db`) via DuckDB ATTACH
+- `row_count_delta` checks with `duckcheck baseline update`
+- `DUCKCHECK_NOW` to freeze freshness comparisons in tests/CI
+
 ## [0.2.0] - 2026-08-19
 
 ### Added

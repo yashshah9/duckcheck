@@ -11,6 +11,7 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 import duckdb
 import structlog
 
+from duckcheck.baseline import BaselineStore
 from duckcheck.spec import CheckSpec, SuiteSpec
 
 log = structlog.get_logger()
@@ -54,11 +55,30 @@ def run_suite(suite: SuiteSpec, suite_dir: Path | None = None) -> RunReport:
     conn = duckdb.connect()
     source = _substitute_env(suite.source)
     _register_source(conn, source, suite.source_table, suite_dir)
+    baseline = _open_baseline(suite, suite_dir)
     results: list[CheckResult] = []
     for check in suite.checks:
-        results.append(_run_check(conn, check))
+        results.append(_run_check(conn, check, baseline))
     conn.close()
+    if baseline is not None:
+        baseline.close()
     return RunReport(suite=suite.name, results=results)
+
+
+def update_baseline(suite: SuiteSpec, suite_dir: Path | None = None) -> Path:
+    """Persist current row counts for row_count_delta checks."""
+    conn = duckdb.connect()
+    source = _substitute_env(suite.source)
+    _register_source(conn, source, suite.source_table, suite_dir)
+    path = _baseline_path(suite, suite_dir)
+    store = BaselineStore(path)
+    count = conn.execute("SELECT COUNT(*) FROM source_data").fetchone()[0]
+    for check in suite.checks:
+        if check.type == "row_count_delta":
+            store.set(check.name, int(count))
+    store.close()
+    conn.close()
+    return path
 
 
 def _register_source(
@@ -77,6 +97,13 @@ def _register_source(
         conn.execute("INSTALL mysql; LOAD mysql;")
         conn.execute(f"ATTACH '{source}' AS remote (TYPE MYSQL)")
         table = _ident(source_table or "orders")
+        conn.execute(f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM remote.{table}")
+        return
+    if source.startswith("sqlite://") or source.endswith(".db") or source.endswith(".sqlite"):
+        db_path = source.removeprefix("sqlite://")
+        path = _resolve_file_source(db_path, suite_dir)
+        table = _ident(source_table or "source_data")
+        conn.execute(f"ATTACH '{path}' AS remote (TYPE SQLITE)")
         conn.execute(f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM remote.{table}")
         return
 
@@ -109,7 +136,33 @@ def _resolve_file_source(source: str, suite_dir: Path | None) -> Path:
     return candidates[0]
 
 
-def _run_check(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckResult:
+def _baseline_path(suite: SuiteSpec, suite_dir: Path | None) -> Path:
+    raw = suite.baseline or ".duckcheck/baseline.db"
+    path = Path(raw)
+    if path.is_absolute():
+        return path
+    root = suite_dir or Path.cwd()
+    return root / path
+
+
+def _open_baseline(suite: SuiteSpec, suite_dir: Path | None) -> BaselineStore | None:
+    if not any(c.type == "row_count_delta" for c in suite.checks):
+        return None
+    return BaselineStore(_baseline_path(suite, suite_dir))
+
+
+def _now_sql() -> str:
+    raw = os.environ.get("DUCKCHECK_NOW")
+    if raw:
+        return f"TIMESTAMP '{raw}'"
+    return "now()"
+
+
+def _run_check(
+    conn: duckdb.DuckDBPyConnection,
+    check: CheckSpec,
+    baseline: BaselineStore | None = None,
+) -> CheckResult:
     log.info("running_check", name=check.name, type=check.type)
     dispatch = {
         "not_null": _check_not_null,
@@ -118,6 +171,7 @@ def _run_check(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckResult
         "custom_sql": _check_custom_sql,
         "freshness": _check_freshness,
         "row_count": _check_row_count,
+        "row_count_delta": lambda c, spec: _check_row_count_delta(c, spec, baseline),
     }
     handler = dispatch.get(check.type)
     if handler is None:
@@ -194,7 +248,7 @@ def _check_freshness(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> Check
     col = _ident(check.column or "")
     interval = _parse_age(check.max_age or "24h")
     stale = conn.execute(
-        f"SELECT COUNT(*) FROM source_data WHERE {col} < now() - {interval}"
+        f"SELECT COUNT(*) FROM source_data WHERE {col} < {_now_sql()} - {interval}"
     ).fetchone()[0]
     passed = stale == 0
     return CheckResult(
@@ -216,6 +270,37 @@ def _check_row_count(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> Check
         f"row count {count} outside [{check.min_rows}, {check.max_rows}]"
         if not passed
         else f"row count {count} within bounds",
+        rows_failed=0 if passed else 1,
+    )
+
+
+def _check_row_count_delta(
+    conn: duckdb.DuckDBPyConnection,
+    check: CheckSpec,
+    baseline: BaselineStore | None,
+) -> CheckResult:
+    count = int(conn.execute("SELECT COUNT(*) FROM source_data").fetchone()[0])
+    if baseline is None:
+        return CheckResult(check.name, False, "row_count_delta requires a baseline store")
+    previous = baseline.get(check.name)
+    if previous is None:
+        return CheckResult(
+            check.name,
+            False,
+            f"no baseline for {check.name}; run duckcheck baseline update",
+        )
+    if previous == 0:
+        drift = 0.0 if count == 0 else 100.0
+    else:
+        drift = abs(count - previous) / previous * 100.0
+    tol = check.tolerance_pct if check.tolerance_pct is not None else 10.0
+    passed = drift <= tol
+    return CheckResult(
+        check.name,
+        passed,
+        f"row count {count} vs baseline {previous} ({drift:.1f}% drift, tol {tol}%)"
+        if not passed
+        else f"row count {count} within {tol}% of baseline {previous}",
         rows_failed=0 if passed else 1,
     )
 
