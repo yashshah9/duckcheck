@@ -2,9 +2,12 @@
 
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 import click
+import duckdb
 import yaml
+from pydantic import ValidationError
 from rich.console import Console
 from rich.table import Table
 
@@ -26,16 +29,32 @@ def health() -> None:
     console.print(f"[green]duckcheck {__version__} OK[/green]")
 
 
+def _load_suite(suite_path: Path) -> SuiteSpec:
+    try:
+        raw = yaml.safe_load(suite_path.read_text(encoding="utf-8"))
+        return SuiteSpec.model_validate(raw)
+    except (yaml.YAMLError, ValidationError, ValueError, TypeError) as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise SystemExit(2)
+
+
+def _fail(exc: BaseException) -> NoReturn:
+    console.print(f"[red]Error:[/red] {exc}")
+    raise SystemExit(2)
+
+
 @main.command("run")
 @click.argument("suite_path", type=click.Path(exists=True, path_type=Path))
 @click.option("--junit", type=click.Path(path_type=Path), default=None)
 @click.option("--source-table", default=None, help="Override attached SQL table name")
 def run_cmd(suite_path: Path, junit: Path | None, source_table: str | None) -> None:
-    raw = yaml.safe_load(suite_path.read_text())
-    suite = SuiteSpec.model_validate(raw)
+    suite = _load_suite(suite_path)
     if source_table:
         suite.source_table = source_table
-    report = run_suite(suite, suite_dir=suite_path.parent)
+    try:
+        report = run_suite(suite, suite_dir=suite_path.parent)
+    except (FileNotFoundError, ValueError, duckdb.Error) as exc:
+        _fail(exc)
 
     table = Table(title=f"Results: {report.suite}")
     table.add_column("Check")
@@ -59,9 +78,11 @@ def run_cmd(suite_path: Path, junit: Path | None, source_table: str | None) -> N
 @click.argument("suite_path", type=click.Path(exists=True, path_type=Path))
 def baseline_cmd(action: str, suite_path: Path) -> None:
     """Persist current row counts for row_count_delta checks."""
-    raw = yaml.safe_load(suite_path.read_text())
-    suite = SuiteSpec.model_validate(raw)
-    path = update_baseline(suite, suite_dir=suite_path.parent)
+    suite = _load_suite(suite_path)
+    try:
+        path = update_baseline(suite, suite_dir=suite_path.parent)
+    except (FileNotFoundError, ValueError, duckdb.Error) as exc:
+        _fail(exc)
     console.print(f"[green]Updated baseline[/green] {path}")
 
 

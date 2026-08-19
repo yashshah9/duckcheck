@@ -8,4 +8,4 @@ services:
     build: {context: ., dockerfile: docker/Dockerfile}
     volumes: [".:/app"]
     working_dir: /app
-    command: ["duckcheck", "run", "examples/checks.yaml"]
+    command: ["duckcheck", "run", "examples/clean.yaml"]

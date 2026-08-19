@@ -44,6 +44,10 @@ def _ident(name: str) -> str:
     return name
 
 
+def _sql_literal(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
 def _substitute_env(value: str) -> str:
     def repl(match: re.Match[str]) -> str:
         return os.environ.get(match.group(1), "")
@@ -87,36 +91,33 @@ def _register_source(
     source_table: str | None,
     suite_dir: Path | None,
 ) -> None:
-    if source.startswith("postgres://") or source.startswith("postgresql://"):
+    if source.startswith(("postgres://", "postgresql://")):
         conn.execute("INSTALL postgres; LOAD postgres;")
-        conn.execute(f"ATTACH '{source}' AS remote (TYPE POSTGRES)")
-        table = _ident(source_table or "public.orders".split(".")[-1])
+        conn.execute(f"ATTACH {_sql_literal(source)} AS remote (TYPE POSTGRES)")
+        table = _ident(source_table or "orders")
         conn.execute(f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM remote.{table}")
         return
     if source.startswith("mysql://"):
         conn.execute("INSTALL mysql; LOAD mysql;")
-        conn.execute(f"ATTACH '{source}' AS remote (TYPE MYSQL)")
+        conn.execute(f"ATTACH {_sql_literal(source)} AS remote (TYPE MYSQL)")
         table = _ident(source_table or "orders")
         conn.execute(f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM remote.{table}")
         return
-    if source.startswith("sqlite://") or source.endswith(".db") or source.endswith(".sqlite"):
+    if source.startswith("sqlite://") or source.endswith((".db", ".sqlite")):
         db_path = source.removeprefix("sqlite://")
         path = _resolve_file_source(db_path, suite_dir)
         table = _ident(source_table or "source_data")
-        conn.execute(f"ATTACH '{path}' AS remote (TYPE SQLITE)")
+        conn.execute(f"ATTACH {_sql_literal(str(path))} AS remote (TYPE SQLITE)")
         conn.execute(f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM remote.{table}")
         return
 
     path = _resolve_file_source(source, suite_dir)
     resolved = str(path)
+    quoted = _sql_literal(resolved)
     if resolved.endswith(".csv"):
-        conn.execute(
-            f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM read_csv_auto('{resolved}')"
-        )
+        conn.execute(f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM read_csv_auto({quoted})")
     elif resolved.endswith(".parquet"):
-        conn.execute(
-            f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM read_parquet('{resolved}')"
-        )
+        conn.execute(f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM read_parquet({quoted})")
     else:
         raise ValueError(f"Unsupported source format: {source}")
 
@@ -124,6 +125,8 @@ def _register_source(
 def _resolve_file_source(source: str, suite_dir: Path | None) -> Path:
     path = Path(source)
     if path.is_absolute():
+        if not path.exists():
+            raise FileNotFoundError(f"Source not found: {path}")
         return path
     candidates: list[Path] = []
     if suite_dir is not None:
@@ -133,7 +136,8 @@ def _resolve_file_source(source: str, suite_dir: Path | None) -> Path:
     for candidate in candidates:
         if candidate.exists():
             return candidate
-    return candidates[0]
+    tried = ", ".join(str(c) for c in candidates)
+    raise FileNotFoundError(f"Source not found: {source} (tried {tried})")
 
 
 def _baseline_path(suite: SuiteSpec, suite_dir: Path | None) -> Path:

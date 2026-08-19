@@ -11,8 +11,8 @@ Data teams need to assert column quality in CI, but Great Expectations is heavyw
 ## Key features (v0.2)
 
 - YAML check definitions
-- DuckDB scans CSV and Parquet locally — no server
-- Checks: `not_null`, `unique`, `accepted_values`, `custom_sql`, `freshness`, `row_count`
+- DuckDB scans CSV, Parquet, and SQLite locally — no server
+- Checks: `not_null`, `unique`, `accepted_values`, `custom_sql`, `freshness`, `row_count`, `row_count_delta`
 - `--junit` for CI dashboards
 - `${ENV}` in source URIs; `--source-table` for SQL ATTACH
 
@@ -42,8 +42,10 @@ pip install -e ".[dev]"
 
 ```bash
 duckcheck health
-duckcheck run examples/checks.yaml
-duckcheck run examples/checks.yaml --junit /tmp/duckcheck.xml
+duckcheck run examples/clean.yaml
+duckcheck run examples/checks.yaml   # fixture with known failures
+duckcheck run examples/clean.yaml --junit /tmp/duckcheck.xml
+duckcheck baseline update examples/clean.yaml
 ```
 
 Example `checks.yaml`:
@@ -77,16 +79,16 @@ pytest tests/ -v
 ## Roadmap
 
 - [x] Freshness + row_count + custom_sql + JUnit
+- [x] Row-count baseline delta store (`duckcheck baseline update`)
 - [ ] Live Postgres/MySQL ATTACH integration tests
-- [ ] Row-count baseline delta store
 - [ ] Airflow/Dagster operators
 
 ## License
 
 MIT
 
-## Known limitations (v0.2)
+## Known limitations (v0.3)
 
 - Postgres/MySQL ATTACH is stubbed (`INSTALL/LOAD`) — no live DB in CI yet
-- `row_count` is min/max bounds, not a stored baseline delta
+- `examples/checks.yaml` is a failing fixture; `examples/clean.yaml` is the happy path
 - Checks still run against a `source_data` view

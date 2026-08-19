@@ -1,7 +1,7 @@
 """Tests for duckcheck runner."""
 
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 import pytest
 import yaml
@@ -24,8 +24,6 @@ def test_sample_suite_fails_on_null_name() -> None:
 
 
 def test_junit_contains_failures() -> None:
-    from duckcheck.runner import to_junit
-
     raw = yaml.safe_load(EXAMPLE.read_text())
     suite = SuiteSpec.model_validate(raw)
     report = run_suite(suite, suite_dir=EXAMPLE.parent)
@@ -57,6 +55,24 @@ def test_sqlite_source_and_row_count_delta(tmp_path: Path) -> None:
     update_baseline(suite, suite_dir=tmp_path)
     second = run_suite(suite, suite_dir=tmp_path)
     assert second.passed
+
+
+def test_clean_suite_passes() -> None:
+    example = ROOT / "examples" / "clean.yaml"
+    raw = yaml.safe_load(example.read_text())
+    suite = SuiteSpec.model_validate(raw)
+    report = run_suite(suite, suite_dir=example.parent)
+    assert report.passed
+
+
+def test_missing_source_raises(tmp_path: Path) -> None:
+    suite = SuiteSpec(
+        name="missing",
+        source="no-such-file.csv",
+        checks=[CheckSpec(name="ids", type="not_null", column="id")],
+    )
+    with pytest.raises(FileNotFoundError, match="Source not found"):
+        run_suite(suite, suite_dir=tmp_path)
 
 
 def test_freshness_respects_frozen_now(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
