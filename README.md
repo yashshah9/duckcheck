@@ -2,6 +2,7 @@
 
 Lightweight data quality checks powered by **DuckDB** — the anti–Great Expectations for teams who want `pip install`, one YAML file, and one command.
 
+[![PyPI](https://img.shields.io/pypi/v/duckcheck.svg)](https://pypi.org/project/duckcheck/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/yashshah9/duckcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/yashshah9/duckcheck/actions/workflows/ci.yml)
@@ -11,8 +12,10 @@ Lightweight data quality checks powered by **DuckDB** — the anti–Great Expec
 ## 60-second try
 
 ```bash
-docker compose run --rm run-example  # duckcheck run examples/clean.yaml
-docker compose run --rm test         # pytest
+pip install duckcheck
+duckcheck run examples/clean.yaml
+# or with Docker:
+docker compose run --rm run-example
 ```
 
 ## Why this vs alternatives
