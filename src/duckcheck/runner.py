@@ -85,6 +85,27 @@ def update_baseline(suite: SuiteSpec, suite_dir: Path | None = None) -> Path:
     return path
 
 
+def _attach_remote(
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    source: str,
+    source_table: str | None,
+    extension: str,
+    attach_type: str,
+    default_table: str,
+) -> None:
+    table = _ident(source_table or default_table)
+    try:
+        conn.execute(f"INSTALL {extension}; LOAD {extension};")
+        conn.execute(f"ATTACH {_sql_literal(source)} AS remote (TYPE {attach_type})")
+        conn.execute(f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM remote.{table}")
+    except duckdb.Error as exc:
+        raise ValueError(
+            f"Failed to ATTACH {attach_type} source "
+            f"(check DSN, credentials, network, and that table {table!r} exists): {exc}"
+        ) from exc
+
+
 def _register_source(
     conn: duckdb.DuckDBPyConnection,
     source: str,
@@ -92,23 +113,37 @@ def _register_source(
     suite_dir: Path | None,
 ) -> None:
     if source.startswith(("postgres://", "postgresql://")):
-        conn.execute("INSTALL postgres; LOAD postgres;")
-        conn.execute(f"ATTACH {_sql_literal(source)} AS remote (TYPE POSTGRES)")
-        table = _ident(source_table or "orders")
-        conn.execute(f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM remote.{table}")
+        _attach_remote(
+            conn,
+            source=source,
+            source_table=source_table,
+            extension="postgres",
+            attach_type="POSTGRES",
+            default_table="orders",
+        )
         return
     if source.startswith("mysql://"):
-        conn.execute("INSTALL mysql; LOAD mysql;")
-        conn.execute(f"ATTACH {_sql_literal(source)} AS remote (TYPE MYSQL)")
-        table = _ident(source_table or "orders")
-        conn.execute(f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM remote.{table}")
+        _attach_remote(
+            conn,
+            source=source,
+            source_table=source_table,
+            extension="mysql",
+            attach_type="MYSQL",
+            default_table="orders",
+        )
         return
     if source.startswith("sqlite://") or source.endswith((".db", ".sqlite")):
         db_path = source.removeprefix("sqlite://")
         path = _resolve_file_source(db_path, suite_dir)
         table = _ident(source_table or "source_data")
-        conn.execute(f"ATTACH {_sql_literal(str(path))} AS remote (TYPE SQLITE)")
-        conn.execute(f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM remote.{table}")
+        try:
+            conn.execute(f"ATTACH {_sql_literal(str(path))} AS remote (TYPE SQLITE)")
+            conn.execute(f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM remote.{table}")
+        except duckdb.Error as exc:
+            raise ValueError(
+                f"Failed to ATTACH SQLITE source "
+                f"(check path and that table {table!r} exists): {exc}"
+            ) from exc
         return
 
     path = _resolve_file_source(source, suite_dir)

@@ -1,5 +1,6 @@
 """Tests for duckcheck runner."""
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -163,3 +164,38 @@ def test_pattern_check(tmp_path: Path) -> None:
     assert not report.passed
     assert report.results[0].rows_failed == 2
     assert "do not match pattern" in report.results[0].message
+
+
+def test_postgres_attach_fails_with_clear_message() -> None:
+    suite = SuiteSpec(
+        name="pg-bad",
+        source="postgresql://nope:nope@127.0.0.1:1/duckcheck",
+        source_table="orders",
+        checks=[CheckSpec(name="ids", type="not_null", column="id")],
+    )
+    with pytest.raises(ValueError, match="Failed to ATTACH POSTGRES"):
+        run_suite(suite)
+
+
+@pytest.mark.skipif(
+    not os.environ.get("DUCKCHECK_PG_DSN"),
+    reason="Set DUCKCHECK_PG_DSN to run live Postgres ATTACH integration",
+)
+def test_postgres_attach_live() -> None:
+    suite = SuiteSpec(
+        name="pg-live",
+        source=os.environ["DUCKCHECK_PG_DSN"],
+        source_table="orders",
+        checks=[
+            CheckSpec(name="id_not_null", type="not_null", column="id"),
+            CheckSpec(name="at_least_one_row", type="row_count", min_rows=1),
+            CheckSpec(
+                name="status_values",
+                type="accepted_values",
+                column="status",
+                values=["active", "inactive"],
+            ),
+        ],
+    )
+    report = run_suite(suite)
+    assert report.passed

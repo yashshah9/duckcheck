@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0] - 2026-09-14
+
+### Added
+- Live Postgres ATTACH path with clear errors on connect/table failures
+- Compose `postgres` service (postgres:16-alpine) + seed `orders` table
+- `examples/postgres.yaml` and `run-postgres-example` compose service
+- Optional integration test gated by `DUCKCHECK_PG_DSN`
+
 ## [0.5.0] - 2026-09-14
 
 ### Added

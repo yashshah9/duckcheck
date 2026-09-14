@@ -11,4 +11,4 @@ duckcheck runs SQL checks locally via DuckDB against files or attached databases
 - Custom SQL is executed as written — only load suites and sources you trust.
 - `${ENV}` substitution can pull secrets into URIs; prefer non-secret paths in committed YAML.
 - duckcheck is a **data quality runner**, not an access-control layer for your warehouse.
-- Postgres/MySQL ATTACH helpers are stubs today; do not assume network DB hardening from this tool.
+- Postgres ATTACH talks to whatever DSN you supply; treat credentials and network exposure as your responsibility. MySQL ATTACH remains lightly exercised.

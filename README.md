@@ -7,7 +7,7 @@ Lightweight data quality checks powered by **DuckDB** — the anti–Great Expec
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/yashshah9/duckcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/yashshah9/duckcheck/actions/workflows/ci.yml)
 
-> **Status:** v0.5 — CSV/Parquet/SQLite sources, custom SQL with field substitution + `expect`, pattern regex, freshness, baselines, JUnit, and `--format json`.
+> **Status:** v0.6 — CSV/Parquet/SQLite/Postgres sources, custom SQL with field substitution + `expect`, pattern regex, freshness, baselines, JUnit, and `--format json`.
 
 ## 60-second try
 
@@ -16,6 +16,8 @@ pip install duckcheck
 duckcheck run examples/clean.yaml
 # or with Docker:
 docker compose run --rm run-example
+# live Postgres ATTACH example:
+docker compose run --rm run-postgres-example
 ```
 
 ## Why this vs alternatives
@@ -31,10 +33,10 @@ docker compose run --rm run-example
 
 Data teams need to assert column quality in CI, but Great Expectations is heavyweight and Soda Core funnels to cloud. Ad-hoc SQL checks have no reporting standard.
 
-## Key features (v0.5)
+## Key features (v0.6)
 
 - YAML check definitions
-- DuckDB scans CSV, Parquet, and SQLite locally — no server
+- DuckDB scans CSV, Parquet, SQLite, and Postgres (ATTACH) — no separate DQ server
 - Checks: `not_null`, `unique`, `accepted_values`, `custom_sql`, `pattern`, `freshness`, `row_count`, `row_count_delta`
 - `custom_sql` `${column}` / `${name}` substitution; `expect` operators: `0`, `=N`, `>N`, `<N`, `>=N`, `<=N` (default `0`)
 - `--format json` and `--junit` for CI dashboards
@@ -46,7 +48,7 @@ Data teams need to assert column quality in CI, but Great Expectations is heavyw
 duckcheck run checks.yaml
     └── SuiteSpec (Pydantic)
             └── DuckDB in-process
-                    └── source_data view from CSV/Parquet
+                    └── source_data view from CSV/Parquet/SQLite/Postgres
 ```
 
 | Component | Technology | Why |
@@ -92,17 +94,30 @@ checks:
     expect: "=3"
 ```
 
+Postgres (compose hostname `postgres`; from the host set `DUCKCHECK_PG_DSN`):
+
+```yaml
+name: postgres-suite
+source: postgresql://duckcheck:duckcheck@postgres:5432/duckcheck
+source_table: orders
+```
+
 ## Docker
 
 ```bash
 docker compose run --rm test
 docker compose run --rm run-example
+docker compose run --rm run-postgres-example
 ```
 
 ## Running tests
 
 ```bash
 pytest tests/ -v
+# live Postgres ATTACH (after compose postgres is up):
+# compose publishes Postgres on host port 5433
+DUCKCHECK_PG_DSN=postgresql://duckcheck:duckcheck@localhost:5433/duckcheck \
+  pytest tests/test_runner.py::test_postgres_attach_live -v
 ```
 
 ## Roadmap
@@ -111,15 +126,16 @@ pytest tests/ -v
 - [x] Row-count baseline delta store (`duckcheck baseline update`)
 - [x] custom_sql `expect` operators + `--format json`
 - [x] custom_sql `${column}` / `${name}` substitution + `pattern` checks
-- [ ] Live Postgres/MySQL ATTACH integration tests
+- [x] Live Postgres ATTACH (compose example + optional `DUCKCHECK_PG_DSN` test)
+- [ ] Live MySQL ATTACH integration tests
 - [ ] Airflow/Dagster operators
 
 ## License
 
 MIT
 
-## Known limitations (v0.5)
+## Known limitations (v0.6)
 
-- Postgres/MySQL ATTACH is stubbed (`INSTALL/LOAD`) — no live DB in CI yet
-- `examples/checks.yaml` is a failing fixture; `examples/clean.yaml` is the happy path
+- MySQL ATTACH is stubbed (`INSTALL/LOAD`) — no live DB in CI yet
+- `examples/checks.yaml` is a failing fixture; `examples/clean.yaml` / `examples/postgres.yaml` are happy paths
 - Checks still run against a `source_data` view

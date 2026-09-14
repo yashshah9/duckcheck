@@ -1,11 +1,36 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: duckcheck
+      POSTGRES_PASSWORD: duckcheck
+      POSTGRES_DB: duckcheck
+    ports: ["5433:5432"]
+    volumes:
+      - ./docker/init-postgres.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U duckcheck -d duckcheck"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
   test:
     build: {context: ., dockerfile: docker/Dockerfile}
     volumes: [".:/app"]
     working_dir: /app
     command: ["pytest", "tests/", "-v"]
+
   run-example:
     build: {context: ., dockerfile: docker/Dockerfile}
     volumes: [".:/app"]
     working_dir: /app
     command: ["duckcheck", "run", "examples/clean.yaml"]
+
+  run-postgres-example:
+    build: {context: ., dockerfile: docker/Dockerfile}
+    volumes: [".:/app"]
+    working_dir: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["duckcheck", "run", "examples/postgres.yaml"]
