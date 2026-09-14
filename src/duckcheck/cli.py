@@ -47,7 +47,13 @@ def _fail(exc: BaseException) -> NoReturn:
 @click.argument("suite_path", type=click.Path(exists=True, path_type=Path))
 @click.option("--junit", type=click.Path(path_type=Path), default=None)
 @click.option("--source-table", default=None, help="Override attached SQL table name")
-def run_cmd(suite_path: Path, junit: Path | None, source_table: str | None) -> None:
+@click.option("--format", "fmt", type=click.Choice(["text", "json"]), default="text")
+def run_cmd(
+    suite_path: Path,
+    junit: Path | None,
+    source_table: str | None,
+    fmt: str,
+) -> None:
     suite = _load_suite(suite_path)
     if source_table:
         suite.source_table = source_table
@@ -56,14 +62,32 @@ def run_cmd(suite_path: Path, junit: Path | None, source_table: str | None) -> N
     except (FileNotFoundError, ValueError, duckdb.Error) as exc:
         _fail(exc)
 
-    table = Table(title=f"Results: {report.suite}")
-    table.add_column("Check")
-    table.add_column("Status")
-    table.add_column("Message")
-    for r in report.results:
-        status = "[green]PASS[/green]" if r.passed else "[red]FAIL[/red]"
-        table.add_row(r.name, status, r.message)
-    console.print(table)
+    if fmt == "json":
+        import json
+
+        payload = {
+            "suite": report.suite,
+            "passed": report.passed,
+            "results": [
+                {
+                    "name": r.name,
+                    "passed": r.passed,
+                    "message": r.message,
+                    "rows_failed": r.rows_failed,
+                }
+                for r in report.results
+            ],
+        }
+        console.print_json(json.dumps(payload))
+    else:
+        table = Table(title=f"Results: {report.suite}")
+        table.add_column("Check")
+        table.add_column("Status")
+        table.add_column("Message")
+        for r in report.results:
+            status = "[green]PASS[/green]" if r.passed else "[red]FAIL[/red]"
+            table.add_row(r.name, status, r.message)
+        console.print(table)
 
     if junit:
         junit.write_text(to_junit(report), encoding="utf-8")

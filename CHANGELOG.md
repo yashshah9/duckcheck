@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0] - 2026-09-14
+
+### Added
+- `custom_sql` `expect` operators: `0`, `=N`, `>N`, `<N`, `>=N`, `<=N` (default `0`)
+- `duckcheck run --format json` for machine-readable CI output
+
 ## [0.3.0] - 2026-08-19
 
 ### Added

@@ -10,6 +10,8 @@ class CheckSpec(BaseModel):
     column: str | None = None
     values: list[str] = Field(default_factory=list)
     sql: str | None = None
+    # custom_sql: pass when row count matches expect ("0", "=3", ">0", "<10")
+    expect: str | int | None = "0"
     max_age: str | None = None
     min_rows: int | None = None
     max_rows: int | None = None

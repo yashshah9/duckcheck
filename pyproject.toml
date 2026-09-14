@@ -4,11 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "duckcheck"
-version = "0.3.0"
+version = "0.4.0"
 description = "Lightweight data quality checks powered by DuckDB"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
+authors = [{ name = "Yash Shah", email = "yash376351@gmail.com" }]
 dependencies = [
     "click>=8.1",
     "duckdb>=1.0",
@@ -17,6 +18,11 @@ dependencies = [
     "rich>=13.7",
     "structlog>=24.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/yashshah9/duckcheck"
+Repository = "https://github.com/yashshah9/duckcheck"
+Issues = "https://github.com/yashshah9/duckcheck/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.4", "mypy>=1.9", "types-PyYAML>=6.0"]

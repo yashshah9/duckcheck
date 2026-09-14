@@ -87,3 +87,34 @@ def test_freshness_respects_frozen_now(tmp_path: Path, monkeypatch: pytest.Monke
     report = run_suite(suite, suite_dir=tmp_path)
     assert not report.passed
     assert report.results[0].rows_failed == 1
+
+
+def test_custom_sql_expect_operators(tmp_path: Path) -> None:
+    csv_path = tmp_path / "rows.csv"
+    csv_path.write_text("id,amount\n1,10\n2,20\n3,30\n", encoding="utf-8")
+    suite = SuiteSpec(
+        name="expect",
+        source=str(csv_path),
+        checks=[
+            CheckSpec(
+                name="three_rows",
+                type="custom_sql",
+                sql="SELECT * FROM source_data",
+                expect="=3",
+            ),
+            CheckSpec(
+                name="has_high",
+                type="custom_sql",
+                sql="SELECT * FROM source_data WHERE amount > 15",
+                expect=">0",
+            ),
+            CheckSpec(
+                name="no_negatives",
+                type="custom_sql",
+                sql="SELECT * FROM source_data WHERE amount < 0",
+                expect="0",
+            ),
+        ],
+    )
+    report = run_suite(suite, suite_dir=tmp_path)
+    assert report.passed

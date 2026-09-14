@@ -224,18 +224,47 @@ def _check_accepted_values(conn: duckdb.DuckDBPyConnection, check: CheckSpec) ->
     )
 
 
+def _eval_expect(count: int, expect: str | int | None) -> tuple[bool, str]:
+    """Return (passed, human message) for custom_sql row counts."""
+    raw = "0" if expect is None else str(expect).strip()
+    if raw.isdigit() or (raw.startswith("=") and raw[1:].strip().isdigit()):
+        want = int(raw[1:].strip() if raw.startswith("=") else raw)
+        passed = count == want
+        return passed, f"got {count} rows, expect ={want}"
+    if raw.startswith(">") and raw[1:].strip().isdigit():
+        want = int(raw[1:].strip())
+        passed = count > want
+        return passed, f"got {count} rows, expect >{want}"
+    if raw.startswith("<") and raw[1:].strip().isdigit():
+        want = int(raw[1:].strip())
+        passed = count < want
+        return passed, f"got {count} rows, expect <{want}"
+    if raw.startswith(">=") and raw[2:].strip().isdigit():
+        want = int(raw[2:].strip())
+        passed = count >= want
+        return passed, f"got {count} rows, expect >={want}"
+    if raw.startswith("<=") and raw[2:].strip().isdigit():
+        want = int(raw[2:].strip())
+        passed = count <= want
+        return passed, f"got {count} rows, expect <={want}"
+    raise ValueError(f"Invalid expect {expect!r}. Use 0, =N, >N, <N, >=N, or <=N.")
+
+
 def _check_custom_sql(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckResult:
     sql = (check.sql or "").strip()
     if not sql.lower().startswith("select"):
         return CheckResult(check.name, False, "custom_sql must be a SELECT statement.")
     rows = conn.execute(sql).fetchall()
-    failed = len(rows)
-    passed = failed == 0
+    count = len(rows)
+    try:
+        passed, detail = _eval_expect(count, check.expect)
+    except ValueError as exc:
+        return CheckResult(check.name, False, str(exc))
     return CheckResult(
         check.name,
         passed,
-        "custom SQL returned 0 failing rows" if passed else f"{failed} failing rows",
-        rows_failed=failed,
+        detail if not passed else f"custom SQL ok ({detail})",
+        rows_failed=0 if passed else count,
     )
 
 
