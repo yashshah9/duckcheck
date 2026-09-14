@@ -173,6 +173,7 @@ def _run_check(
         "unique": _check_unique,
         "accepted_values": _check_accepted_values,
         "custom_sql": _check_custom_sql,
+        "pattern": _check_pattern,
         "freshness": _check_freshness,
         "row_count": _check_row_count,
         "row_count_delta": lambda c, spec: _check_row_count_delta(c, spec, baseline),
@@ -250,8 +251,21 @@ def _eval_expect(count: int, expect: str | int | None) -> tuple[bool, str]:
     raise ValueError(f"Invalid expect {expect!r}. Use 0, =N, >N, <N, >=N, or <=N.")
 
 
+def _substitute_check_fields(sql: str, check: CheckSpec) -> str:
+    """Replace ${column} / ${name} from check config before execute."""
+    mapping = {"name": check.name}
+    if check.column is not None:
+        mapping["column"] = check.column
+
+    def repl(match: re.Match[str]) -> str:
+        key = match.group(1)
+        return mapping.get(key, match.group(0))
+
+    return re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", repl, sql)
+
+
 def _check_custom_sql(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckResult:
-    sql = (check.sql or "").strip()
+    sql = _substitute_check_fields((check.sql or "").strip(), check)
     if not sql.lower().startswith("select"):
         return CheckResult(check.name, False, "custom_sql must be a SELECT statement.")
     rows = conn.execute(sql).fetchall()
@@ -265,6 +279,24 @@ def _check_custom_sql(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> Chec
         passed,
         detail if not passed else f"custom SQL ok ({detail})",
         rows_failed=0 if passed else count,
+    )
+
+
+def _check_pattern(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckResult:
+    col = _ident(check.column or "")
+    if not check.pattern:
+        return CheckResult(check.name, False, "pattern check requires pattern")
+    pat = _sql_literal(check.pattern)
+    bad = conn.execute(
+        f"SELECT COUNT(*) FROM source_data "
+        f"WHERE {col} IS NOT NULL AND NOT regexp_matches(CAST({col} AS VARCHAR), {pat})"
+    ).fetchone()[0]
+    passed = bad == 0
+    return CheckResult(
+        check.name,
+        passed,
+        f"{bad} values in {col} do not match pattern" if not passed else f"{col} matches pattern",
+        rows_failed=bad,
     )
 
 

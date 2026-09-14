@@ -6,7 +6,7 @@ Lightweight data quality checks powered by **DuckDB** — the anti–Great Expec
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/yashshah9/duckcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/yashshah9/duckcheck/actions/workflows/ci.yml)
 
-> **Status:** v0.4 — CSV/Parquet/SQLite sources, custom SQL with `expect` operators, freshness, baselines, JUnit, and `--format json`.
+> **Status:** v0.5 — CSV/Parquet/SQLite sources, custom SQL with field substitution + `expect`, pattern regex, freshness, baselines, JUnit, and `--format json`.
 
 ## 60-second try
 
@@ -28,12 +28,12 @@ docker compose run --rm test         # pytest
 
 Data teams need to assert column quality in CI, but Great Expectations is heavyweight and Soda Core funnels to cloud. Ad-hoc SQL checks have no reporting standard.
 
-## Key features (v0.4)
+## Key features (v0.5)
 
 - YAML check definitions
 - DuckDB scans CSV, Parquet, and SQLite locally — no server
-- Checks: `not_null`, `unique`, `accepted_values`, `custom_sql`, `freshness`, `row_count`, `row_count_delta`
-- `custom_sql` `expect` operators: `0`, `=N`, `>N`, `<N`, `>=N`, `<=N` (default `0`)
+- Checks: `not_null`, `unique`, `accepted_values`, `custom_sql`, `pattern`, `freshness`, `row_count`, `row_count_delta`
+- `custom_sql` `${column}` / `${name}` substitution; `expect` operators: `0`, `=N`, `>N`, `<N`, `>=N`, `<=N` (default `0`)
 - `--format json` and `--junit` for CI dashboards
 - `${ENV}` in source URIs; `--source-table` for SQL ATTACH
 
@@ -107,6 +107,7 @@ pytest tests/ -v
 - [x] Freshness + row_count + custom_sql + JUnit
 - [x] Row-count baseline delta store (`duckcheck baseline update`)
 - [x] custom_sql `expect` operators + `--format json`
+- [x] custom_sql `${column}` / `${name}` substitution + `pattern` checks
 - [ ] Live Postgres/MySQL ATTACH integration tests
 - [ ] Airflow/Dagster operators
 
@@ -114,7 +115,7 @@ pytest tests/ -v
 
 MIT
 
-## Known limitations (v0.4)
+## Known limitations (v0.5)
 
 - Postgres/MySQL ATTACH is stubbed (`INSTALL/LOAD`) — no live DB in CI yet
 - `examples/checks.yaml` is a failing fixture; `examples/clean.yaml` is the happy path

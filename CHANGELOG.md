@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0] - 2026-09-14
+
+### Added
+- `custom_sql` `${column}` / `${name}` substitution from check config fields
+- `pattern` check type — regex match on non-null column values
+
 ## [0.4.0] - 2026-09-14
 
 ### Added

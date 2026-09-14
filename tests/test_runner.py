@@ -118,3 +118,48 @@ def test_custom_sql_expect_operators(tmp_path: Path) -> None:
     )
     report = run_suite(suite, suite_dir=tmp_path)
     assert report.passed
+
+
+def test_custom_sql_field_substitution(tmp_path: Path) -> None:
+    csv_path = tmp_path / "people.csv"
+    csv_path.write_text("id,email\n1,a@x.com\n2,\n", encoding="utf-8")
+    suite = SuiteSpec(
+        name="sub",
+        source=str(csv_path),
+        checks=[
+            CheckSpec(
+                name="email_nulls",
+                type="custom_sql",
+                column="email",
+                sql="SELECT * FROM source_data WHERE ${column} IS NULL",
+                expect="=1",
+            ),
+        ],
+    )
+    report = run_suite(suite, suite_dir=tmp_path)
+    assert report.passed
+    assert report.results[0].name == "email_nulls"
+
+
+def test_pattern_check(tmp_path: Path) -> None:
+    csv_path = tmp_path / "emails.csv"
+    csv_path.write_text(
+        "id,email\n1,ok@example.com\n2,bad\n3,\n4,also-bad\n",
+        encoding="utf-8",
+    )
+    suite = SuiteSpec(
+        name="pattern-suite",
+        source=str(csv_path),
+        checks=[
+            CheckSpec(
+                name="email_shape",
+                type="pattern",
+                column="email",
+                pattern=r"^[^@]+@[^@]+\.[^@]+$",
+            ),
+        ],
+    )
+    report = run_suite(suite, suite_dir=tmp_path)
+    assert not report.passed
+    assert report.results[0].rows_failed == 2
+    assert "do not match pattern" in report.results[0].message
