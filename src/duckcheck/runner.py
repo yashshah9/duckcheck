@@ -44,6 +44,11 @@ def _ident(name: str) -> str:
     return name
 
 
+def _relation(check: CheckSpec) -> str:
+    """Validated relation name for this check (defaults to source_data)."""
+    return _ident(check.table or "source_data")
+
+
 def _sql_literal(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
@@ -225,7 +230,8 @@ def _run_check(
 
 def _check_not_null(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckResult:
     col = _ident(check.column or "")
-    count = conn.execute(f"SELECT COUNT(*) FROM source_data WHERE {col} IS NULL").fetchone()[0]
+    rel = _relation(check)
+    count = conn.execute(f"SELECT COUNT(*) FROM {rel} WHERE {col} IS NULL").fetchone()[0]
     passed = count == 0
     return CheckResult(
         check.name,
@@ -237,8 +243,9 @@ def _check_not_null(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckR
 
 def _check_unique(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckResult:
     col = _ident(check.column or "")
+    rel = _relation(check)
     dupes = conn.execute(
-        f"SELECT COUNT(*) - COUNT(DISTINCT {col}) FROM source_data"
+        f"SELECT COUNT(*) - COUNT(DISTINCT {col}) FROM {rel}"
     ).fetchone()[0]
     passed = dupes == 0
     return CheckResult(
@@ -251,9 +258,12 @@ def _check_unique(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckRes
 
 def _check_accepted_values(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckResult:
     col = _ident(check.column or "")
-    allowed = ", ".join(f"'{v}'" for v in check.values)
+    if not check.values:
+        return CheckResult(check.name, False, "accepted_values requires a non-empty values list")
+    allowed = ", ".join(_sql_literal(v) for v in check.values)
+    rel = _relation(check)
     bad = conn.execute(
-        f"SELECT COUNT(*) FROM source_data WHERE {col} NOT IN ({allowed})"
+        f"SELECT COUNT(*) FROM {rel} WHERE {col} NOT IN ({allowed})"
     ).fetchone()[0]
     passed = bad == 0
     return CheckResult(
@@ -291,10 +301,10 @@ def _eval_expect(count: int, expect: str | int | None) -> tuple[bool, str]:
 
 
 def _substitute_check_fields(sql: str, check: CheckSpec) -> str:
-    """Replace ${column} / ${name} from check config before execute."""
-    mapping = {"name": check.name}
+    """Replace ${column} / ${name} / ${table} from check config before execute."""
+    mapping = {"name": check.name, "table": _relation(check)}
     if check.column is not None:
-        mapping["column"] = check.column
+        mapping["column"] = _ident(check.column)
 
     def repl(match: re.Match[str]) -> str:
         key = match.group(1)
@@ -305,8 +315,9 @@ def _substitute_check_fields(sql: str, check: CheckSpec) -> str:
 
 def _check_custom_sql(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckResult:
     sql = _substitute_check_fields((check.sql or "").strip(), check)
-    if not sql.lower().startswith("select"):
-        return CheckResult(check.name, False, "custom_sql must be a SELECT statement.")
+    head = sql.lstrip().lower()
+    if not (head.startswith("select") or head.startswith("with")):
+        return CheckResult(check.name, False, "custom_sql must be a SELECT (or WITH … SELECT) statement.")
     rows = conn.execute(sql).fetchall()
     count = len(rows)
     try:
@@ -326,8 +337,9 @@ def _check_pattern(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckRe
     if not check.pattern:
         return CheckResult(check.name, False, "pattern check requires pattern")
     pat = _sql_literal(check.pattern)
+    rel = _relation(check)
     bad = conn.execute(
-        f"SELECT COUNT(*) FROM source_data "
+        f"SELECT COUNT(*) FROM {rel} "
         f"WHERE {col} IS NOT NULL AND NOT regexp_matches(CAST({col} AS VARCHAR), {pat})"
     ).fetchone()[0]
     passed = bad == 0
@@ -351,8 +363,9 @@ def _parse_age(spec: str) -> str:
 def _check_freshness(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckResult:
     col = _ident(check.column or "")
     interval = _parse_age(check.max_age or "24h")
+    rel = _relation(check)
     stale = conn.execute(
-        f"SELECT COUNT(*) FROM source_data WHERE {col} < {_now_sql()} - {interval}"
+        f"SELECT COUNT(*) FROM {rel} WHERE {col} < {_now_sql()} - {interval}"
     ).fetchone()[0]
     passed = stale == 0
     return CheckResult(
@@ -364,7 +377,8 @@ def _check_freshness(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> Check
 
 
 def _check_row_count(conn: duckdb.DuckDBPyConnection, check: CheckSpec) -> CheckResult:
-    count = conn.execute("SELECT COUNT(*) FROM source_data").fetchone()[0]
+    rel = _relation(check)
+    count = conn.execute(f"SELECT COUNT(*) FROM {rel}").fetchone()[0]
     too_few = check.min_rows is not None and count < check.min_rows
     too_many = check.max_rows is not None and count > check.max_rows
     passed = not too_few and not too_many
@@ -383,7 +397,8 @@ def _check_row_count_delta(
     check: CheckSpec,
     baseline: BaselineStore | None,
 ) -> CheckResult:
-    count = int(conn.execute("SELECT COUNT(*) FROM source_data").fetchone()[0])
+    rel = _relation(check)
+    count = int(conn.execute(f"SELECT COUNT(*) FROM {rel}").fetchone()[0])
     if baseline is None:
         return CheckResult(check.name, False, "row_count_delta requires a baseline store")
     previous = baseline.get(check.name)

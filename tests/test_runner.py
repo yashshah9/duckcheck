@@ -142,6 +142,34 @@ def test_custom_sql_field_substitution(tmp_path: Path) -> None:
     assert report.results[0].name == "email_nulls"
 
 
+def test_check_honors_table_field(tmp_path: Path) -> None:
+    import duckdb
+
+    from duckcheck.runner import _check_not_null, _check_row_count, _register_source
+
+    csv_path = tmp_path / "people.csv"
+    csv_path.write_text("id,name\n1,a\n2,\n", encoding="utf-8")
+    conn = duckdb.connect()
+    _register_source(conn, str(csv_path), None, tmp_path)
+    # Alternate relation: only the non-null name row
+    conn.execute("CREATE VIEW good_rows AS SELECT * FROM source_data WHERE name IS NOT NULL")
+    # Against source_data: name has a null → fail
+    bad = _check_not_null(
+        conn, CheckSpec(name="n", type="not_null", column="name", table="source_data")
+    )
+    assert not bad.passed
+    # Against good_rows: no nulls → pass
+    ok = _check_not_null(
+        conn, CheckSpec(name="n", type="not_null", column="name", table="good_rows")
+    )
+    assert ok.passed
+    count = _check_row_count(
+        conn, CheckSpec(name="c", type="row_count", table="good_rows", min_rows=1, max_rows=1)
+    )
+    assert count.passed
+    conn.close()
+
+
 def test_pattern_check(tmp_path: Path) -> None:
     csv_path = tmp_path / "emails.csv"
     csv_path.write_text(

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.8.1] - 2026-09-19
+
+- Safer SQL literals; honor CheckSpec.table; allow CTE custom_sql
+
+
 ## [0.8.0] - 2026-09-18
 
 ### Added
