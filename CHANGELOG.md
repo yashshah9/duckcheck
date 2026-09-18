@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.0] - 2026-09-18
+
+### Added
+- Live MySQL ATTACH path (compose `mysql` + `examples/mysql.yaml` + `run-mysql-example`)
+- Optional integration test gated by `DUCKCHECK_MYSQL_DSN`
+
+### Fixed
+- Materialize ATTACH sources into a local `source_data` table so MySQL row_count / aggregates work
+
 ## [0.6.0] - 2026-09-14
 
 ### Added

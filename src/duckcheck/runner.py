@@ -98,7 +98,11 @@ def _attach_remote(
     try:
         conn.execute(f"INSTALL {extension}; LOAD {extension};")
         conn.execute(f"ATTACH {_sql_literal(source)} AS remote (TYPE {attach_type})")
-        conn.execute(f"CREATE OR REPLACE VIEW source_data AS SELECT * FROM remote.{table}")
+        # ponytail: materialize — MySQL scanner asserts on aggregates over remote views
+        # (row_count / count_star). Local table keeps checks identical to CSV path.
+        conn.execute(
+            f"CREATE OR REPLACE TABLE source_data AS SELECT * FROM remote.{table}"
+        )
     except duckdb.Error as exc:
         raise ValueError(
             f"Failed to ATTACH {attach_type} source "

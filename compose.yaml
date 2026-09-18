@@ -14,6 +14,22 @@ services:
       timeout: 5s
       retries: 15
 
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_USER: duckcheck
+      MYSQL_PASSWORD: duckcheck
+      MYSQL_DATABASE: duckcheck
+      MYSQL_ROOT_PASSWORD: duckcheck
+    ports: ["3307:3306"]
+    volumes:
+      - ./docker/init-mysql.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pduckcheck"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
   test:
     build: {context: ., dockerfile: docker/Dockerfile}
     volumes: [".:/app"]
@@ -34,3 +50,12 @@ services:
       postgres:
         condition: service_healthy
     command: ["duckcheck", "run", "examples/postgres.yaml"]
+
+  run-mysql-example:
+    build: {context: ., dockerfile: docker/Dockerfile}
+    volumes: [".:/app"]
+    working_dir: /app
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: ["duckcheck", "run", "examples/mysql.yaml"]

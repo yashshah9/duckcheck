@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "duckcheck"
-version = "0.6.0"
+version = "0.7.0"
 description = "Lightweight data quality checks powered by DuckDB"
 readme = "README.md"
 license = "MIT"

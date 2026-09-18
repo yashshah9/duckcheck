@@ -1,0 +1,21 @@
+name: mysql-suite
+# Compose service hostname; from the host use DUCKCHECK_MYSQL_DSN with localhost.
+source: mysql://duckcheck:duckcheck@mysql:3306/duckcheck
+source_table: orders
+checks:
+  - name: id_not_null
+    type: not_null
+    column: id
+  - name: name_not_null
+    type: not_null
+    column: name
+  - name: status_values
+    type: accepted_values
+    column: status
+    values: [active, inactive]
+  - name: at_least_one_row
+    type: row_count
+    min_rows: 1
+  - name: no_negative_amounts
+    type: custom_sql
+    sql: SELECT * FROM source_data WHERE amount < 0
