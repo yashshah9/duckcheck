@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0] - 2026-09-18
+
+### Added
+- Airflow `DuckCheckOperator` via `pip install 'duckcheck[airflow]'` (`duckcheck.airflow_op`)
+- Dagster `duckcheck_op(...)` factory via `pip install 'duckcheck[dagster]'` (`duckcheck.dagster_op`)
+- Shared `execute_suite_path` helper (`duckcheck.orchestrate`) for operators + programmatic runs
+- Examples: `examples/airflow/dag_duckcheck.py`, `examples/dagster/job_duckcheck.py`
+
 ## [0.7.0] - 2026-09-18
 
 ### Added

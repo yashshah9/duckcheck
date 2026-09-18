@@ -7,7 +7,7 @@ Lightweight data quality checks powered by **DuckDB** — the anti–Great Expec
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/yashshah9/duckcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/yashshah9/duckcheck/actions/workflows/ci.yml)
 
-> **Status:** v0.7 — CSV/Parquet/SQLite/**Postgres/MySQL** sources, custom SQL + `expect`, pattern, freshness, baselines, JUnit, `--format json`.
+> **Status:** v0.8 — CSV/Parquet/SQLite/Postgres/MySQL sources, custom SQL, baselines, JUnit/JSON, **Airflow + Dagster operators**.
 
 ## 60-second try
 
@@ -34,7 +34,7 @@ docker compose run --rm run-mysql-example
 
 Data teams need to assert column quality in CI, but Great Expectations is heavyweight and Soda Core funnels to cloud. Ad-hoc SQL checks have no reporting standard.
 
-## Key features (v0.7)
+## Key features (v0.8)
 
 - YAML check definitions
 - DuckDB scans CSV, Parquet, SQLite, Postgres, and MySQL (ATTACH) — no separate DQ server
@@ -42,6 +42,7 @@ Data teams need to assert column quality in CI, but Great Expectations is heavyw
 - `custom_sql` `${column}` / `${name}` substitution; `expect` operators: `0`, `=N`, `>N`, `<N`, `>=N`, `<=N` (default `0`)
 - `--format json` and `--junit` for CI dashboards
 - `${ENV}` in source URIs; `--source-table` for SQL ATTACH
+- **Orchestration:** `DuckCheckOperator` (Airflow) and `duckcheck_op` (Dagster) via optional extras
 
 ## Architecture
 
@@ -120,6 +121,32 @@ docker compose run --rm run-postgres-example
 docker compose run --rm run-mysql-example
 ```
 
+## Airflow / Dagster
+
+```bash
+pip install 'duckcheck[airflow]'   # DuckCheckOperator
+pip install 'duckcheck[dagster]'   # duckcheck_op(...)
+```
+
+```python
+from duckcheck.airflow_op import DuckCheckOperator
+
+DuckCheckOperator(
+    task_id="validate_orders",
+    suite_path="checks/orders.yaml",
+    source="postgresql://...",  # optional override
+    junit_output="/tmp/duckcheck.xml",
+)
+```
+
+```python
+from duckcheck.dagster_op import duckcheck_op
+
+validate = duckcheck_op(name="validate", suite_path="checks/orders.yaml")
+```
+
+See `examples/airflow/` and `examples/dagster/`.
+
 ## Running tests
 
 ```bash
@@ -141,14 +168,14 @@ DUCKCHECK_MYSQL_DSN=mysql://duckcheck:duckcheck@127.0.0.1:3307/duckcheck \
 - [x] custom_sql `${column}` / `${name}` substitution + `pattern` checks
 - [x] Live Postgres ATTACH (compose example + optional `DUCKCHECK_PG_DSN` test)
 - [x] Live MySQL ATTACH (compose example + optional `DUCKCHECK_MYSQL_DSN` test)
-- [ ] Airflow/Dagster operators
+- [x] Airflow `DuckCheckOperator` + Dagster `duckcheck_op` (optional extras)
 
 ## License
 
 MIT
 
-## Known limitations (v0.7)
+## Known limitations (v0.8)
 
-- Airflow/Dagster operators not shipped yet
+- Airflow/Dagster extras pull large frameworks — install only when needed
 - `examples/checks.yaml` is a failing fixture; `examples/clean.yaml` / `examples/postgres.yaml` / `examples/mysql.yaml` are happy paths
 - Checks still run against a `source_data` view

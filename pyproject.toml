@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "duckcheck"
-version = "0.7.0"
+version = "0.8.0"
 description = "Lightweight data quality checks powered by DuckDB"
 readme = "README.md"
 license = "MIT"
@@ -26,6 +26,8 @@ Issues = "https://github.com/yashshah9/duckcheck/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.4", "mypy>=1.9", "types-PyYAML>=6.0"]
+airflow = ["apache-airflow>=2.7"]
+dagster = ["dagster>=1.6"]
 
 [project.scripts]
 duckcheck = "duckcheck.cli:main"
